@@ -16,8 +16,13 @@ class GoalsVC: UIViewController {
     //Outlets
     @IBOutlet weak var tableView: UITableView!
     
+    @IBOutlet weak var undoView: UIView!
     //Variables
     var goals: [Goal] = []
+    var lastRemovedGoalDesc: String?
+    var lastRemovedGoalType: String?
+    var lastRemovedGoalCompletionValue: Int32?
+    var lastRemovedGoalProgress: Int32?
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -27,9 +32,8 @@ class GoalsVC: UIViewController {
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        
-        fetchCoreData()
-        tableView.reloadData()
+        undoView.isHidden = true
+        setupTableView()
     }
 
     func fetchCoreData() {
@@ -43,10 +47,32 @@ class GoalsVC: UIViewController {
             }
         }
     }
-
+    @IBAction func undoBtnPressed(_ sender: Any) {
+        guard let managedContext = appDelegate?.persistentContainer.viewContext else { return }
+        
+        let oldGoal = Goal(context: managedContext)
+        oldGoal.goalDescription = lastRemovedGoalDesc
+        oldGoal.goalProgress = lastRemovedGoalProgress!
+        oldGoal.goalCompletionValue = lastRemovedGoalCompletionValue!
+        oldGoal.goalType = lastRemovedGoalType
+        
+        do {
+            try managedContext.save()
+            undoView.isHidden = true
+            setupTableView()
+        } catch {
+            debugPrint("could not undo: \(error.localizedDescription)")
+        }
+    }
+    
     @IBAction func addGoalBtnPressed(_ sender: Any) {
         guard let createGoalVC = storyboard?.instantiateViewController(withIdentifier: "CreateGoalVC") else { return }
         presentDetail(createGoalVC)
+    }
+    
+    func setupTableView() {
+        fetchCoreData()
+        tableView.reloadData()
     }
     
 }
@@ -112,8 +138,19 @@ extension GoalsVC {
     
     func removeGoal(atIndexPath indexPath: IndexPath) {
         guard let managedContext = appDelegate?.persistentContainer.viewContext else { return }
+        
+        let delGoal = goals[indexPath.row]
+        
+        lastRemovedGoalDesc = delGoal.goalDescription
+        lastRemovedGoalType = delGoal.goalType
+        lastRemovedGoalCompletionValue = delGoal.goalCompletionValue
+        lastRemovedGoalProgress = delGoal.goalProgress
+        
         managedContext.delete(goals[indexPath.row])
+        
+        
         do {
+            self.undoView.isHidden = false
             try managedContext.save()
         } catch {
             debugPrint("Could not remove: \(error.localizedDescription)")
@@ -136,12 +173,4 @@ extension GoalsVC {
             debugPrint("Could not save progree: \(error.localizedDescription)")
         }
     }
-    
-    
-    
-    
-    
-    
-    
-    
 }
